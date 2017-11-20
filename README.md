@@ -3,7 +3,7 @@ This is the project repo for the final project of the Udacity Self-Driving Car N
 
 ## The Team
 
-|     Role      |      Name      |    Location   | LinkedIn    |     email   |
+|     Role      |      Name      |    Location   | LinkedIn    |     Email   |
 |---------------|----------------|---------------|-------------|-------------|
 |__Lead__  | Yuheng Wang | San Jose, CA | [Yuheng](https://www.linkedin.com/in/yuhwang/) | <yxw9636@gmail.com> |
 |  Member  | Xiaogang Zhang| China | [Xiaogang]()| <dlzhangxg@gmail.com> |
@@ -33,6 +33,22 @@ You will build both a traffic light detection node and a traffic light classific
 
 ```(path_to_project_repo)/ros/src/twist_controller/```
 Carla is equipped with a drive-by-wire (dbw) system, meaning the throttle, brake, and steering have electronic control. This package contains the files that are responsible for control of the vehicle: the node dbw_node.py and the file twist_controller.py, along with a pid and lowpass filter that you can use in your implementation. The dbw_node subscribes to the /current_velocity topic along with the /twist_cmd topic to receive target linear and angular velocities. Additionally, this node will subscribe to /vehicle/dbw_enabled, which indicates if the car is under dbw or driver control. This node will publish throttle, brake, and steering commands to the /vehicle/throttle_cmd, /vehicle/brake_cmd, and /vehicle/steering_cmd topics.
+
+##Order of Project Development
+Because we write code across several packages with some nodes depending on messages published by other nodes, we complete the project in the following order:
+
+1. Waypoint Updater Node (Partial): Complete a partial waypoint updater which subscribes to /base_waypoints and /current_pose and publishes to /final_waypoints.
+
+2. DBW Node: Once your waypoint updater is publishing /final_waypoints, the waypoint_follower node will start publishing messages to the/twist_cmd topic. At this point, you have everything needed to build the dbw_node. After completing this step, the car should drive in the simulator, ignoring the traffic lights.
+
+3. Traffic Light Detection: This can be split into 2 parts:
+
+    3.1 Detection: Detect the traffic light and its color from the /image_color. The topic /vehicle/traffic_lights contains the exact location and status of all traffic lights in simulator, so you can test your output.
+   
+    3.2 Waypoint publishing: Once you have correctly identified the traffic light and determined its position, you can convert it to a waypoint index and publish it.
+
+4. Waypoint Updater (Full): Use /traffic_waypoint to change the waypoint target velocities before publishing to /final_waypoints. Your car should now stop at red traffic lights and move when they are green.
+
 
 ### Native Installation
 
