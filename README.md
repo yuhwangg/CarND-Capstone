@@ -9,7 +9,6 @@ This is the project repo for the final project of the Udacity Self-Driving Car N
 |  Member  | Xiaogang Zhang| China | [Xiaogang]()| <dlzhangxg@gmail.com> |
 |  Member  | Kambiz Mir | Irvine, CA | [Kambiz]()| <kambizmir@gmail.com> |
 |  Member  | Julia Pralle| Bay Area, CA | [Julia]()| <julia.bolewski@gmail.com> |
-|  Member  | John Mcconnell|  | [John]()| <John.mcconnell.1874@gmail.com> |
 
 
 ## System Architecture Diagram
