@@ -9,7 +9,7 @@ This is the project repo for the final project of the Udacity Self-Driving Car N
 |  Member  | Xiaogang Zhang| China | [Xiaogang]()| <dlzhangxg@gmail.com> |
 |  Member  | Kambiz Mir | Irvine, CA | [Kambiz]()| <kambizmir@gmail.com> |
 |  Member  | Julia Pralle| Bay Area, CA | [Julia]()| <julia.bolewski@gmail.com> |
-
+|  Member  | Cesare Montresor| Italy| [Cesare]()| <> |
 
 ## System Architecture Diagram
 For this project, we are writing ROS nodes to implement core functionality of the autonomous vehicle system, including traffic light detection, control, and waypoint following. The code is tested using a simulator before submission.
