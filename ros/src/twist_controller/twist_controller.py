@@ -29,9 +29,9 @@ class Controller(object):
 
         # TODO: tune PID params
         steer_controller_params = {
-            'kp': 0.225097,
-            'ki': 9.94403e-05,
-            'kd': 5.53144,
+            'kp': 0.2,
+            'ki': 0.0001,
+            'kd': 0.5,
             'mn': -max_steer_angle,
             'mx': max_steer_angle
         }

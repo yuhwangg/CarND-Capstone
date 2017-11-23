@@ -168,24 +168,20 @@ class WaypointUpdater(object):
         car_position = self.pose.pose.position
         car_yaw = self.get_current_yaw()
         index = self.next_waypoint(car_position, car_yaw)
+        cnt = 6
 
-        next_point = self.waypoints[index].pose.pose.position
-        prev_point = self.waypoints[index-1].pose.pose.position
+        x_list = []
+        y_list = []
+        for i in range(cnt):
+            wp_index = index + i - cnt/2 # half before, half after
+            point = self.waypoints[wp_index].pose.pose.position
+            x,y = self.world_to_car_coords(car_position, point, car_yaw)
+            x_list.append(x)
+            y_list.append(y)
 
-        #print(car_yaw)
-        #print(prev_point.x, prev_point.y)
-        #print(car_position.x, car_position.y)
-        #print(next_point.x, next_point.y)
-
-        x1,y1 = self.world_to_car_coords(car_position, next_point, car_yaw)
-        x2,y2 = self.world_to_car_coords(car_position, prev_point, car_yaw)
-
-        #print(x1, y1)
-        #print(x2, y2)
-
-        coeffs = np.polyfit([x1,x2],[y1,y2],1)
+        coeffs = np.polyfit(x_list,y_list,2)
         cte = coeffs[-1] # fit for x = 0
-        print('CTE:',cte)
+        print('index:',index,"\tCTE:",cte)
 
         msg.data = cte
         self.cte_pub.publish(msg)
