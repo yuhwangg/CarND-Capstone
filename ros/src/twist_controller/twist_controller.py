@@ -30,8 +30,8 @@ class Controller(object):
         # TODO: tune PID params
         steer_controller_params = {
             'kp': 0.2,
-            'ki': 0.0001,
-            'kd': 0.5,
+            'ki': 0.00001,
+            'kd': 0.3,
             'mn': -max_steer_angle,
             'mx': max_steer_angle
         }
@@ -55,7 +55,7 @@ class Controller(object):
         throttle = 1.
         print(cte)
         if dbw_enabled: # disable pid for manual drive
-            steer = self.steer_controller.step(cte, elapsed)
+            steer = -self.steer_controller.step(cte, elapsed)
             #throttle = self.steer_controller.step(target_vel-curr_vel, elapsed) #TODO: enable after decent tuning of steering
 
 

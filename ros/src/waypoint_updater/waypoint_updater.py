@@ -10,6 +10,7 @@ import tf
 import copy
 import numpy as np
 from scipy import interpolate
+import matplotlib.pyplot as plt
 
 '''
 This node will publish waypoints from the car's current position to some `x` distance ahead.
@@ -36,6 +37,8 @@ class WaypointUpdater(object):
         self.pose = None
         self.waypoints = None
         self.current_velocity = None
+        self.last_waypoint_index = None
+        self.waypoint_direction = None
 
         # Subsciber
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
@@ -50,11 +53,18 @@ class WaypointUpdater(object):
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
         self.final_waypoints_index_pub = rospy.Publisher('final_index', Int32, queue_size=1)
         self.cte_pub = rospy.Publisher('/vehicle/cte', Float32, queue_size=1)
+        self.round = 0
+        self.debug_cte = False
+
+        if self.debug_cte:
+            plt.ion()
+            self.fig = plt.figure()
+            self.ax = self.fig.add_subplot(1, 1, 1)
 
         self.loop()
 
     def loop(self):
-        rate = rospy.Rate(10)  # 0.5Hz
+        rate = rospy.Rate(50)  # 0.5Hz
         while not rospy.is_shutdown():
             if (self.pose is not None) and (self.waypoints is not None):
                 self.update_final_waypoints()
@@ -117,14 +127,22 @@ class WaypointUpdater(object):
 
     def next_waypoint(self, position, theta):
         index = self.closest_waypoint(position)
-        map_x = self.waypoints[index].pose.pose.position.x
-        map_y = self.waypoints[index].pose.pose.position.y
+        map_coords = self.waypoints[index].pose.pose.position
+
+        map_x = map_coords.x
+        map_y = map_coords.y
 
         heading = math.atan2(map_y - position.y, map_x - position.x)
         angle = math.fabs(theta - heading)
         if angle > math.pi / 4:
             index += 1
+        index = self.norm_index(index)
 
+        return index
+
+    def norm_index(self,index):
+        wp_count = len(self.waypoints)
+        index = abs(index % wp_count)
         return index
 
     def get_current_yaw(self):
@@ -156,11 +174,21 @@ class WaypointUpdater(object):
         self.final_waypoints_pub.publish(msg)
 
     def world_to_car_coords(self, origin, point, angle):
-        px, py = point.x-origin.x , point.y-origin.y
-        angle_sin = math.sin(angle)
-        angle_cos = math.cos(angle)
+
+        angle = -angle + math.pi / 2 #adjust simulator angle
+
+
+        while angle < -math.pi or angle > math.pi: #normalizing
+            print("Normalizing: ",angle,"\n")
+            angle += 2 * math.pi * (1 if angle < -math.pi else -1)
+
+
+        px, py = point.x-origin.x, point.y-origin.y
+        angle_sin = np.sin(angle)
+        angle_cos = np.cos(angle)
         x = angle_cos * px - angle_sin * py
         y = angle_sin * px + angle_cos * py
+        print(angle, x,y)
         return x, y
 
     def publish_cte(self):
@@ -172,19 +200,43 @@ class WaypointUpdater(object):
 
         x_list = []
         y_list = []
+        indexes = []
         for i in range(cnt):
-            wp_index = index + i - cnt/2 # half before, half after
+            wp_index = self.norm_index(index + i - cnt/2)
+            indexes.append(wp_index)
             point = self.waypoints[wp_index].pose.pose.position
             x,y = self.world_to_car_coords(car_position, point, car_yaw)
             x_list.append(x)
             y_list.append(y)
 
-        coeffs = np.polyfit(x_list,y_list,2)
+
+
+        coeffs = np.polyfit(y_list,x_list,2)
         cte = coeffs[-1] # fit for x = 0
-        print('index:',index,"\tCTE:",cte)
+        print('indexes:', indexes, "CTE:", cte)
+        print('car_position:', car_position.x, car_position.y)
 
         msg.data = cte
         self.cte_pub.publish(msg)
+
+        if self.debug_cte:
+            self.show_cte(x_list,y_list)
+
+
+    def show_cte(self,x_list,y_list):
+        #introduces a systematic delay for rendering, it can affect the PID controller
+        self.ax.clear()
+        self.ax.plot(x_list, y_list, 'ro')
+        self.ax.spines['left'].set_position('zero')
+        self.ax.spines['bottom'].set_position('zero')
+        plt.axis('equal')
+        plt.ylim([-30, 30])
+        plt.xlim([-10, 10])
+
+        plt.draw()
+        plt.pause(0.0000000001)
+
+
 
 
 if __name__ == '__main__':
