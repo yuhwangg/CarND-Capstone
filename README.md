@@ -6,7 +6,7 @@ This is the project repo for the final project of the Udacity Self-Driving Car N
 |     Role      |      Name      |    Location      |     Email   |    Git Repository |
 |---------------|----------------|---------------|-------------|-----------|
 |__Lead__  | Yuheng Wang | San Jose, CA |  <yxw9636@gmail.com> | https://github.com/yuhwangg/CarND-Capstone |
-|  Member  | Xiaogang Zhang| China |  <dlzhangxg@gmail.com> | |
+|  Member  | Xiaogang Zhang| China |  <dlzhangxg@gmail.com> | https://github.com/dlzhangxg/CarND-Capstone |
 |  Member  | Kambiz Mir | Irvine, CA |  <kambizmir@gmail.com> | |
 |  Member  | Julia Pralle| Bay Area, CA |  <julia.bolewski@gmail.com> | |
 |  Member  | Cesare Montresor| Italy | <cesare.montresor@gmail.com> | https://github.com/cesare-montresor/CarND-Capstone |
