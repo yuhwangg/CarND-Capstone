@@ -64,8 +64,11 @@ class WaypointUpdater(object):
         # rospy.Subscriber('/obstacle_waypoint', Int32, obstacle_cb)
 
         # FIXME ::<xg>:: this is only for testing purpose, delete this.
-        rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb)
-        self.traffic_lights_wp_mapping = None
+        if UPDATE_VELOCITY:
+            rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb)
+            self.traffic_lights_wp_mapping = None
+        else:
+            rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
 
         # the next wayponint index, this is an indication of the car's position
         # kind of like the "localization" result. 
@@ -214,17 +217,21 @@ class WaypointUpdater(object):
                 self.set_waypoint_velocity(waypoints, i, max_speed_mps)
         else:    # decrease the velocity
             # get the index of traffic light waypoint in the waypoints
+            rospy.logdebug("Vupd-traffic_waypoint: (%s, %s, %s)" % (self.traffic_waypoint, self.waypoints[self.traffic_waypoint].pose.pose.position.x, self.waypoints[self.traffic_waypoint].pose.pose.position.y ))
+            rospy.logdebug("Vupd-next_waypoint_index: (%s, %s, %s)" % (self.next_waypoint_index, self.waypoints[self.next_waypoint_index].pose.pose.position.x, self.waypoints[self.next_waypoint_index].pose.pose.position.y ))
+            
             relative_tl_wp_index = self.traffic_waypoint - self.next_waypoint_index
             rospy.logdebug("Vupd-Relative red light index %s" % relative_tl_wp_index)
             # test, the index conversion is corret
             try:
                 assert(self.distance_2d(waypoints[relative_tl_wp_index].pose.pose.position, self.waypoints[self.traffic_waypoint].pose.pose.position) < 0.0001)
             except AssertionError:
-                rospy.logerr("Error-Vupd-Assert errror. ")
-                rospy.logdebug("Vupd-relative_tl_wp_index: (%s, %s, %s)" % (relative_tl_wp_index, waypoints[relative_tl_wp_index].pose.pose.position.x, waypoints[relative_tl_wp_index].pose.pose.position.y ))
-                rospy.logdebug("Vupd-traffic_waypoint: (%s, %s, %s)" % (self.traffic_waypoint, self.waypoints[self.traffic_waypoint].pose.pose.position.x, self.waypoints[self.traffic_waypoint].pose.pose.position.y ))
-                rospy.logdebug("Vupd-next_waypoint_index: (%s, %s, %s)" % (self.next_waypoint_index, self.waypoints[self.next_waypoint_index].pose.pose.position.x, self.waypoints[self.next_waypoint_index].pose.pose.position.y ))
+                rospy.logerr("Error-Vupd-AssertionError. ")
+                # rospy.logdebug("Vupd-relative_tl_wp_index: (%s, %s, %s)" % (relative_tl_wp_index, waypoints[relative_tl_wp_index].pose.pose.position.x, waypoints[relative_tl_wp_index].pose.pose.position.y ))
                 return 
+            except IndexError:
+                rospy.logerr("Error-Vupd-IndexError. ")
+                return
 
             total_distance_to_stop = self.wp_distance(waypoints, 0, relative_tl_wp_index)
             rospy.logdebug("Vupd-The total distance to stop: %.4f" % total_distance_to_stop)
@@ -233,6 +240,7 @@ class WaypointUpdater(object):
             # linearly decrease the other velocity, based on the distanct to stop line
             # initial_velocity = self.get_waypoint_velocity(waypoints[0])
             initial_velocity = self.current_velocity.linear.x
+            rospy.logdebug("Vupd-The initial velocity %s" % initial_velocity)
             dist = 0
             for i in range(relative_tl_wp_index-1):
                 dist += self.distance_2d(waypoints[i].pose.pose.position, waypoints[i+1].pose.pose.position)
@@ -364,7 +372,11 @@ class WaypointUpdater(object):
         rospy.logdebug("TL-Lookahead index (%s, %s)" % (self.next_waypoint_index, self.next_waypoint_index+LOOKAHEAD_WPS))
         red_lights_index = []
         for tl_index, tl in enumerate(tl_array_msg.lights):
-            if self.traffic_lights_wp_mapping[tl_index] >= self.next_waypoint_index and self.traffic_lights_wp_mapping[tl_index] <= self.next_waypoint_index + LOOKAHEAD_WPS and (tl.state == TrafficLight.RED or tl.state == TrafficLight.YELLOW):
+            # fixbug: exclude the points in the ends.
+            # if the car is already in the red light location, keep moving;
+            # if the car is in the last lookahead way points, we ignore it. since it still far away. 
+            # if self.traffic_lights_wp_mapping[tl_index] >= self.next_waypoint_index and self.traffic_lights_wp_mapping[tl_index] <= self.next_waypoint_index + LOOKAHEAD_WPS and (tl.state == TrafficLight.RED or tl.state == TrafficLight.YELLOW):
+            if self.traffic_lights_wp_mapping[tl_index] > self.next_waypoint_index and self.traffic_lights_wp_mapping[tl_index] < self.next_waypoint_index + LOOKAHEAD_WPS and (tl.state == TrafficLight.RED or tl.state == TrafficLight.YELLOW):
                 red_lights_index.append(self.traffic_lights_wp_mapping[tl_index])
                 rospy.logdebug("TL-The red light array index %s " % tl_index)
         rospy.logdebug("TL-Red Light index: %s" % ",".join(["(%s, %s, %s)" % (l, self.waypoints[l].pose.pose.position.x, self.waypoints[l].pose.pose.position.y) for l in red_lights_index]))
