@@ -1,15 +1,15 @@
-This is the project repo for the final project of the Udacity Self-Driving Car Nanodegree: Programming a Real Self-Driving Car. This is a colleboration between five team members:
+This is the project repo for the final project of the Udacity Self-Driving Car Nanodegree: Programming a Real Self-Driving Car. This is a collaboration between five team members:
 
 
 ## The Team
 
-|     Role      |      Name      |    Location      |     Email   |    Git Repository |
-|---------------|----------------|---------------|-------------|-----------|
-|__Lead__  | Yuheng Wang | San Jose, CA |  <yxw9636@gmail.com> | https://github.com/yuhwangg/CarND-Capstone |
-|  Member  | Xiaogang Zhang| China |  <dlzhangxg@gmail.com> | https://github.com/dlzhangxg/CarND-Capstone |
-|  Member  | Kambiz Mir | Irvine, CA |  <kambizmir@gmail.com> | |
-|  Member  | Julia Pralle| Bay Area, CA |  <julia.bolewski@gmail.com> | |
-|  Member  | Cesare Montresor| Italy | <cesare.montresor@gmail.com> | https://github.com/cesare-montresor/CarND-Capstone |
+|     Role      |      Name      |    Location      |     Email   |
+|---------------|----------------|---------------|-------------|
+|__Lead__  | Yuheng Wang | San Jose, CA |  <yxw9636@gmail.com> | 
+|  Member  | Xiaogang Zhang| China |  <dlzhangxg@gmail.com> | 
+|  Member  | Kambiz Mir | Irvine, CA |  <kambizmir@gmail.com> | 
+|  Member  | Julia Pralle| Bay Area, CA |  <julia.bolewski@gmail.com> | 
+|  Member  | Cesare Montresor| Italy | <cesare.montresor@gmail.com> |
 
 ## System Architecture Diagram
 For this project, we are writing ROS nodes to implement core functionality of the autonomous vehicle system, including traffic light detection, control, and waypoint following. The code is tested using a simulator before submission.
