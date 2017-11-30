@@ -43,6 +43,7 @@ MAX_DECEL = 1.0
 
 # set the value to True to enable the velocity update:
 UPDATE_VELOCITY = True
+USING_SIMULATE_DATA = False
 
 class WaypointUpdater(object):
     def __init__(self):
@@ -64,7 +65,7 @@ class WaypointUpdater(object):
         # rospy.Subscriber('/obstacle_waypoint', Int32, obstacle_cb)
 
         # FIXME ::<xg>:: this is only for testing purpose, delete this.
-        if UPDATE_VELOCITY:
+        if USING_SIMULATE_DATA:
             rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb)
             self.traffic_lights_wp_mapping = None
         else:
@@ -113,7 +114,7 @@ class WaypointUpdater(object):
         pass
 
     def traffic_cb(self, msg):
-        if UPDATE_VELOCITY:
+        if USING_SIMULATE_DATA:
             # here the msg is from /vehicle/traffic_lights
             self.traffic_waypoint = self._get_red_light_wp_index(msg)
         else:
