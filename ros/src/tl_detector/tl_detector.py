@@ -73,7 +73,7 @@ class TLDetector(object):
         self.camera_image = msg
         light_wp, state = self.process_traffic_lights()
 	
-	#print "light_wp: " , light_wp, " state: " , state
+	    #print "light_wp: " , light_wp, " state: " , state
 
         '''
         Publish upcoming red lights at camera frequency.
@@ -103,22 +103,20 @@ class TLDetector(object):
             int: index of the closest waypoint in self.waypoints
 
         """
-        #TODO implement
+        min_dist = np.inf
+        min_index = -1
+        if self.waypoints is not None:
+            for index, wp in enumerate(self.waypoints.waypoints):
+            x2 = np.power(wp.pose.pose.position.x - pose.position.x , 2)
+            y2 = np.power(wp.pose.pose.position.y -pose.position.y ,2)
+            z2 = np.power(wp.pose.pose.position.z - pose.position.z ,2)
 
-	min_dist = np.inf
-	min_index = -1
-	if self.waypoints is not None:
-	    for index, wp in enumerate(self.waypoints.waypoints):
-		x2 = np.power(wp.pose.pose.position.x - pose.position.x , 2)
-		y2 = np.power(wp.pose.pose.position.y -pose.position.y ,2)
-		z2 = np.power(wp.pose.pose.position.z - pose.position.z ,2)
+            dist = np.sqrt(x2 + y2 +z2)
+            if dist < min_dist:
+                min_dist = dist
+                min_index = index
 
-		dist = np.sqrt(x2 + y2 +z2)
-		if dist < min_dist:
-		    min_dist = dist
-		    min_index = index
-
-        return min_index
+            return min_index
 
     def get_light_state(self, light):
         """Determines the current color of the traffic light
@@ -137,7 +135,71 @@ class TLDetector(object):
         cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
 
         #Get classification
-        return self.light_classifier.get_classification(cv_image)
+        # return self.light_classifier.get_classification(cv_image)
+
+        #Prepare image for classification
+        #cut 50 pixels left and right of the image and the bottom 100 pixels
+        if self.sim_testing: 
+            width, height, _ = cv_image.shape
+            x_start = int(width * 0.10)
+            x_end = int(width * 0.90)
+            y_start = 0
+            y_end = int(height * 0.85)
+            processed_img = cv_image[y_start:y_end, x_start:x_end]
+        else:
+            #zoom on the traffic light
+            processed_img = cv_image.copy()
+
+        #Convert image to RGB format
+        processed_img = cv2.cvtColor(processed_img, cv2.COLOR_BGR2RGB)
+
+        # Get classification
+        #initialize light_state to unknown by default
+        light_state = TrafficLight.UNKNOWN
+        light_state_via_msg = None
+
+        #get the ground truth traffic light states through the traffic light messages
+        for tl in self.lights:
+            dist = math.sqrt((tl.pose.pose.position.x - light.position.x)**2 + (tl.pose.pose.position.y - light.position.y)**2)
+            if (dist < 50): # found the light close to the stop line
+                light_state_via_msg = tl.state
+                break       # no need to parse other lights once light was found
+
+        #detect traffic light position (box) in image
+        #convert image to np array
+        img_full_np = self.light_classifier.load_image_into_numpy_array(processed_img)
+        b = self.light_classifier.get_localization(img_full_np)
+        print(b)
+        # If there is no detection or low-confidence detection
+        unknown = False
+        if np.array_equal(b, np.zeros(4)):
+           print ('unknown')
+           unknown = True
+        else:    #use the classifier to classify the state of the traffic light
+           img_np = cv2.resize(processed_img[b[0]:b[2], b[1]:b[3]], (32, 32))
+           self.light_classifier.get_classification(img_np)
+           light_state = self.light_classifier.signal_status
+
+        rospy.loginfo("Upcoming light %s, True state: %s", light_state, light_state_via_msg)
+
+        #compare detected state against ground truth
+        if not unknown:
+            self.count = self.count + 1
+            filename = "sim_image_" + str(self.count)
+            if (light_state == light_state_via_msg):
+               self.tp_classification = self.tp_classification + 1
+               #filename = filename + "_good_" + str(light_state) + ".jpg"
+            else:
+               filename = filename + "_bad_" + str(light_state) + ".jpg"
+
+            self.total_classification = self.total_classification + 1
+            accuracy = (self.tp_classification / self.total_classification) * 100
+
+            if self.count % 20 == 0:
+                rospy.loginfo("Classification accuracy: %s", accuracy)
+ 
+        return light_state
+
 
     def process_traffic_lights(self):
         """Finds closest visible traffic light, if one exists, and determines its
@@ -158,30 +220,30 @@ class TLDetector(object):
 
         #TODO find the closest visible traffic light (if one exists)
 
-	min_dist = np.inf
-	min_index = -1
-	light_wp_index = -1
+        min_dist = np.inf
+        min_index = -1
+        light_wp_index = -1
 
-	for index, l in enumerate(self.lights):
-	    x2 = np.power(l.pose.pose.position.x - self.pose.pose.position.x ,2)
-	    y2 = np.power(l.pose.pose.position.y - self.pose.pose.position.y ,2)
-	    z2 = np.power(l.pose.pose.position.z - self.pose.pose.position.z ,2)
+        for index, l in enumerate(self.lights):
+            x2 = np.power(l.pose.pose.position.x - self.pose.pose.position.x ,2)
+            y2 = np.power(l.pose.pose.position.y - self.pose.pose.position.y ,2)
+            z2 = np.power(l.pose.pose.position.z - self.pose.pose.position.z ,2)
 
-	    dist = np.sqrt(x2 + y2 +z2)
-	    if dist < min_dist:
-		light_wp_index = self.get_closest_waypoint(l.pose.pose)
-		
-		if light_wp_index >= car_wp_index and dist<120:
-		    min_dist = dist
-		    min_index = index
-		    light = self.lights[min_index]
-		
-        if light:
-	    # This line should be uncommented once the "get_light_state" is ready 
-            #state = self.get_light_state(light)
-	    state = light.state
+            dist = np.sqrt(x2 + y2 +z2)
+            if dist < min_dist:
+            light_wp_index = self.get_closest_waypoint(l.pose.pose)
             
-	    return light_wp_index, state
+            if light_wp_index >= car_wp_index and dist<120:
+                min_dist = dist
+                min_index = index
+                light = self.lights[min_index]
+            
+            if light:
+            # This line should be uncommented once the "get_light_state" is ready 
+                #state = self.get_light_state(light)
+            state = light.state
+                
+            return light_wp_index, state
       
   	#self.waypoints = None
         
