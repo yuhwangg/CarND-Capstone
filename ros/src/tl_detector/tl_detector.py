@@ -11,7 +11,6 @@ import tf
 import cv2
 import yaml
 import numpy as np
-import math
 
 STATE_COUNT_THRESHOLD = 3
 
@@ -23,6 +22,11 @@ class TLDetector(object):
         self.waypoints = None
         self.camera_image = None
         self.lights = []
+
+        self.current_closest_wp_index = None
+        self.wp_direction = None
+        self.min_wp_index = 0
+        self.max_wp_index = 10901
 
         sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
@@ -74,7 +78,7 @@ class TLDetector(object):
         self.camera_image = msg
         light_wp, state = self.process_traffic_lights()
 	
-	    #print "light_wp: " , light_wp, " state: " , state
+        print "light_wp: " , light_wp, " state: " , state
 
         '''
         Publish upcoming red lights at camera frequency.
@@ -108,16 +112,14 @@ class TLDetector(object):
         min_index = -1
         if self.waypoints is not None:
             for index, wp in enumerate(self.waypoints.waypoints):
-                x2 = np.power(wp.pose.pose.position.x - pose.position.x , 2)
-                y2 = np.power(wp.pose.pose.position.y -pose.position.y ,2)
-                z2 = np.power(wp.pose.pose.position.z - pose.position.z ,2)
-
-                dist = np.sqrt(x2 + y2 +z2)
+                x2 = np.power(wp.pose.pose.position.x -pose.position.x , 2)
+                y2 = np.power(wp.pose.pose.position.y -pose.position.y , 2)
+                dist = np.sqrt(x2 + y2)
                 if dist < min_dist:
                     min_dist = dist
                     min_index = index
 
-            return min_index
+        return min_index
 
     def get_light_state(self, light):
         """Determines the current color of the traffic light
@@ -216,40 +218,52 @@ class TLDetector(object):
 
         # List of positions that correspond to the line to stop in front of for a given intersection
         stop_line_positions = self.config['stop_line_positions']
+        
         if(self.pose):
-            #car_position = self.get_closest_waypoint(self.pose.pose)
             car_wp_index = self.get_closest_waypoint(self.pose.pose)
+	     
+            if self.current_closest_wp_index is not None:
+                if car_wp_index == self.min_wp_index and self.current_closest_wp_index ==self.maz_wp_index:
+                    self.wp_direction = "increasing"
+                elif car_wp_index == self.max_wp_index and self.current_closest_wp_index ==self.min_wp_index:
+                    self.wp_direction = "decreasing"
+                elif car_wp_index > self.current_closest_wp_index:
+                    self.wp_direction = "increasing"
+                elif car_wp_index < self.current_closest_wp_index:
+                    self.wp_direction = "decreasing"
+
+            self.current_closest_wp_index = car_wp_index
 
         #TODO find the closest visible traffic light (if one exists)
 
         min_dist = np.inf
         min_index = -1
-        light_wp_index = -1
+        line_wp_index = -1
 
-        for index, l in enumerate(self.lights):
-            x2 = np.power(l.pose.pose.position.x - self.pose.pose.position.x ,2)
-            y2 = np.power(l.pose.pose.position.y - self.pose.pose.position.y ,2)
-            z2 = np.power(l.pose.pose.position.z - self.pose.pose.position.z ,2)
-
-            dist = np.sqrt(x2 + y2 +z2)
+        for index, slp in enumerate(stop_line_positions):
+            slp_pose = Pose()
+            slp_pose.position.x = slp[0]
+            slp_pose.position.y = slp[1]
+            x2 = np.power(slp[0] - self.pose.pose.position.x ,2)
+            y2 = np.power(slp[1] - self.pose.pose.position.y ,2)
+            dist = np.sqrt(x2 + y2)
             if dist < min_dist:
-                light_wp_index = self.get_closest_waypoint(l.pose.pose)
-            
-            if light_wp_index >= car_wp_index and dist<120:
+                line_wp_index = self.get_closest_waypoint(slp_pose)
+
+            if ( (line_wp_index >= car_wp_index and self.wp_direction=="increasing") or (line_wp_index <= car_wp_index and self.wp_direction=="decreasing") ) and  dist<120:
                 min_dist = dist
                 min_index = index
                 light = self.lights[min_index]
+
+        if light:
+            # This line should be uncommented once the "get_light_state" is ready 
+            #state = self.get_light_state(light)
+            state = light.state
             
-            if light:
-                # This line should be uncommented once the "get_light_state" is ready
-                #state = self.get_light_state(light)
-                state = light.state
-                
-            return light_wp_index, state
-      
-  	#self.waypoints = None
-        
-	return -1, TrafficLight.UNKNOWN
+            return line_wp_index, state
+          
+        return -1, TrafficLight.UNKNOWN
+
 
 if __name__ == '__main__':
     try:
