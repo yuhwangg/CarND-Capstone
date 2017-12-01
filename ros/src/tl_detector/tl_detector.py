@@ -218,11 +218,11 @@ class TLDetector(object):
         # List of positions that correspond to the line to stop in front of for a given intersection
         stop_line_positions = self.config['stop_line_positions']
         
-      	if(self.pose):
+        if(self.pose):
             car_wp_index = self.get_closest_waypoint(self.pose.pose)
 	     
             if self.current_closest_wp_index is not None:
-    	    	if car_wp_index == self.min_wp_index and self.current_closest_wp_index ==self.maz_wp_index:
+                if car_wp_index == self.min_wp_index and self.current_closest_wp_index ==self.maz_wp_index:
                     self.wp_direction = "increasing"
                 elif car_wp_index == self.max_wp_index and self.current_closest_wp_index ==self.min_wp_index:
                     self.wp_direction = "decreasing"
@@ -255,7 +255,7 @@ class TLDetector(object):
                 light = self.lights[min_index]
 
         if light:
-	        # This line should be uncommented once the "get_light_state" is ready 
+            # This line should be uncommented once the "get_light_state" is ready 
             #state = self.get_light_state(light)
             state = light.state
             
