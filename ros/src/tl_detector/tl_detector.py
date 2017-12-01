@@ -11,6 +11,7 @@ import tf
 import cv2
 import yaml
 import numpy as np
+import math
 
 STATE_COUNT_THRESHOLD = 3
 
@@ -107,14 +108,14 @@ class TLDetector(object):
         min_index = -1
         if self.waypoints is not None:
             for index, wp in enumerate(self.waypoints.waypoints):
-            x2 = np.power(wp.pose.pose.position.x - pose.position.x , 2)
-            y2 = np.power(wp.pose.pose.position.y -pose.position.y ,2)
-            z2 = np.power(wp.pose.pose.position.z - pose.position.z ,2)
+                x2 = np.power(wp.pose.pose.position.x - pose.position.x , 2)
+                y2 = np.power(wp.pose.pose.position.y -pose.position.y ,2)
+                z2 = np.power(wp.pose.pose.position.z - pose.position.z ,2)
 
-            dist = np.sqrt(x2 + y2 +z2)
-            if dist < min_dist:
-                min_dist = dist
-                min_index = index
+                dist = np.sqrt(x2 + y2 +z2)
+                if dist < min_dist:
+                    min_dist = dist
+                    min_index = index
 
             return min_index
 
@@ -211,6 +212,7 @@ class TLDetector(object):
 
         """
         light = None
+        state = 4 # unknown
 
         # List of positions that correspond to the line to stop in front of for a given intersection
         stop_line_positions = self.config['stop_line_positions']
@@ -231,7 +233,7 @@ class TLDetector(object):
 
             dist = np.sqrt(x2 + y2 +z2)
             if dist < min_dist:
-            light_wp_index = self.get_closest_waypoint(l.pose.pose)
+                light_wp_index = self.get_closest_waypoint(l.pose.pose)
             
             if light_wp_index >= car_wp_index and dist<120:
                 min_dist = dist
@@ -239,9 +241,9 @@ class TLDetector(object):
                 light = self.lights[min_index]
             
             if light:
-            # This line should be uncommented once the "get_light_state" is ready 
+                # This line should be uncommented once the "get_light_state" is ready
                 #state = self.get_light_state(light)
-            state = light.state
+                state = light.state
                 
             return light_wp_index, state
       
