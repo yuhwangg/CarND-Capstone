@@ -36,7 +36,7 @@ that we have created in the `__init__` function.
 
 class DBWNode(object):
     def __init__(self):
-        rospy.init_node('dbw_node', log_level=rospy.INFO)
+        rospy.init_node('dbw_node', log_level=rospy.DEBUG)
 
         # Parameter
         vehicle_mass = rospy.get_param('~vehicle_mass', 1736.35)
@@ -122,14 +122,13 @@ class DBWNode(object):
             # throttle = 1.0
             # brake = 0
             # angle = 0.0
-
             if self.dbw_enabled:
                 self.publish(throttle, brake, angle)
             rate.sleep()
 
     def publish(self, throttle, brake, steer):
-        debug_msg = "DBW T:{} \t B:{} \t S:{}\t".format(throttle, brake, steer)
-        rospy.loginfo(debug_msg)
+        #debug_msg = "DBW T:{} \t B:{} \t S:{}\t".format(throttle, brake, steer)
+        #rospy.logdebug(debug_msg)
         self.count += 1
 
         tcmd = ThrottleCmd()

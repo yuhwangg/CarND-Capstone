@@ -38,9 +38,9 @@ class Controller(object):
         # TODO: tune PID params and enable (see below)
         throttle_controller_params = {
             'kp': 1,
-            'ki': 1,
-            'kd': 1,
-            'mn': 0,
+            'ki': 0,
+            'kd': 0.3,
+            'mn': decel_limit,
             'mx': accel_limit
         }
 
@@ -52,13 +52,16 @@ class Controller(object):
     def control(self, target_vel,  curr_vel, target_ang_vel, curr_ang_vel, dbw_enabled, curr_angle, cte, elapsed):
         # TODO: this is a rough and incomplete implementation, but it kind of follow the waypoints, bit wobboly
         steer = 0.
-        throttle = 1.
-        print(cte)
+        throttle = 0.
+        brake = 0.
+        #print("VEL:", curr_vel, target_vel, target_vel-curr_vel)
         if dbw_enabled: # disable pid for manual drive
             steer = -self.steer_controller.step(cte, elapsed)
-            #throttle = self.steer_controller.step(target_vel-curr_vel, elapsed) #TODO: enable after decent tuning of steering
+            throttle = self.throttle_controller.step(target_vel-curr_vel, elapsed)
+            brake = -throttle if throttle < 0 else 0
+            throttle = throttle if throttle > 0 else 0
 
 
 
         # Return throttle, brake, steer
-        return throttle, 0., steer
+        return throttle, brake, steer

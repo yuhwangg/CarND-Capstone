@@ -98,8 +98,10 @@ class WaypointUpdater(object):
         while not rospy.is_shutdown():
             if (self.pose is not None) and (self.waypoints is not None):
                 self.update_final_waypoints()
-                self.publish_final_waypoints()
                 self.publish_cte()
+                self.update_velocity(self.final_waypoints) # <xg>: update the velocity
+                self.publish_final_waypoints()
+
             rate.sleep()
         rospy.spin()
 
@@ -198,16 +200,11 @@ class WaypointUpdater(object):
             wp = (i + index) % len1
             waypoint = copy.deepcopy(self.waypoints[wp])
             final_waypoints.append(waypoint)
-
-        # <xg>: update the velocity
-        if UPDATE_VELOCITY:
-            self.update_velocity(final_waypoints)
-        # </xg>
-
         self.final_waypoints = final_waypoints
-        self.final_waypoints_index_pub.publish(Int32(index))
 
     def update_velocity(self, waypoints):
+        if not UPDATE_VELOCITY:
+            return
 
         if self.traffic_waypoint is None:
             return 
@@ -261,7 +258,8 @@ class WaypointUpdater(object):
             #         vel = 0.
             #     wp.twist.twist.linear.x = min(vel, wp.twist.twist.linear.x)
             # the above code is from the "decelerate()" method from the "waypoint_loader" file.
-        rospy.logdebug("Vupd- The updated velocity: %s" % (",".join(["%.2f" % wp.twist.twist.linear.x for wp in waypoints])))  
+        rospy.logdebug("Vupd- The updated velocity: %s" % (",".join(["%.2f" % wp.twist.twist.linear.x for wp in waypoints])))
+        #rospy.logdebug("Next waypoint velocity: %s" % ( waypoints[0].twist.twist.linear.x ))
         pass
 
 
@@ -277,7 +275,7 @@ class WaypointUpdater(object):
 
 
         while angle < -math.pi or angle > math.pi: #normalizing
-            print("Normalizing: ",angle,"\n")
+            #print("Normalizing: ",angle,"\n")
             angle += 2 * math.pi * (1 if angle < -math.pi else -1)
 
 
@@ -286,7 +284,7 @@ class WaypointUpdater(object):
         angle_cos = np.cos(angle)
         x = angle_cos * px - angle_sin * py
         y = angle_sin * px + angle_cos * py
-        print(angle, x,y)
+        #print(angle, x,y)
         return x, y
 
     def publish_cte(self):
@@ -311,8 +309,8 @@ class WaypointUpdater(object):
 
         coeffs = np.polyfit(y_list,x_list,2)
         cte = coeffs[-1] # fit for x = 0
-        print('indexes:', indexes, "CTE:", cte)
-        print('car_position:', car_position.x, car_position.y)
+        #print('indexes:', indexes, "CTE:", cte)
+        #print('car_position:', car_position.x, car_position.y)
 
         msg.data = cte
         self.cte_pub.publish(msg)
