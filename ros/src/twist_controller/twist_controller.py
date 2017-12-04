@@ -1,7 +1,6 @@
 from yaw_controller import YawController
 from pid import PID
 
-
 GAS_DENSITY = 2.858
 ONE_MPH = 0.44704
 
@@ -58,10 +57,8 @@ class Controller(object):
         if dbw_enabled: # disable pid for manual drive
             steer = -self.steer_controller.step(cte, elapsed)
             throttle = self.throttle_controller.step(target_vel-curr_vel, elapsed)
-            brake = -throttle if throttle < 0 else 0
+            brake = (-throttle * self.vehicle_mass * self.wheel_radius) if throttle < 0 else 0
             throttle = throttle if throttle > 0 else 0
-
-
 
         # Return throttle, brake, steer
         return throttle, brake, steer

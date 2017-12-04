@@ -38,6 +38,8 @@ LOOKAHEAD_WPS = 200  # Number of waypoints we will publish. You can change this 
 # this value should be changed. 
 MAX_SPEED = 40  
 MAX_DECEL = 1.0 
+WP_NUMBER_TO_BRAKE = 40
+SPEED_DECREASE_RATE = 5
 # </xg>
 
 
@@ -228,6 +230,9 @@ class WaypointUpdater(object):
                 rospy.logerr("Error-Vupd-IndexError. ")
                 return
 
+            if relative_tl_wp_index > WP_NUMBER_TO_BRAKE:   # only step the brake paddle within WP_NUMBER_TO_BRAKE wps
+                return 
+
             total_distance_to_stop = self.wp_distance(waypoints, 0, relative_tl_wp_index)
             self.log_obj["DistanceToStopLine"] = "%.4f" % total_distance_to_stop
             self.set_waypoint_velocity(waypoints, relative_tl_wp_index, 0)   # set the velocity of last waypoint is zero
@@ -238,7 +243,7 @@ class WaypointUpdater(object):
             dist = 0
             for i in range(relative_tl_wp_index-1):
                 dist += self.distance_2d(waypoints[i].pose.pose.position, waypoints[i+1].pose.pose.position)
-                v = initial_velocity * (1 - float(dist) / total_distance_to_stop)
+                v = initial_velocity * (1 - SPEED_DECREASE_RATE * float(dist) / total_distance_to_stop)
                 if v < 1.0:
                     v = 0.
                 self.set_waypoint_velocity(waypoints, i, v)
