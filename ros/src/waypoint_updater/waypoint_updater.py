@@ -91,6 +91,8 @@ class WaypointUpdater(object):
             self.fig = plt.figure()
             self.ax = self.fig.add_subplot(1, 1, 1)
 
+        self_log_obj = {}
+
         self.loop()
 
     def loop(self):
@@ -102,10 +104,14 @@ class WaypointUpdater(object):
                 self.update_velocity(self.final_waypoints) # <xg>: update the velocity
                 self.publish_final_waypoints()
 
+                import json
+                rospy.logdebug(json.dumps(self.log_obj, indent=2))
+
             rate.sleep()
         rospy.spin()
 
     def pose_cb(self, msg):
+        self.log_obj["CarPosition"] = (msg.pose.pose.position.x, msg.pose.pose.position.y)
         self.pose = msg
         pass
 
@@ -342,7 +348,33 @@ class WaypointUpdater(object):
         if self.next_waypoint_index is None:
             return
 
-        rospy.logdebug("TL-Info: %s " % (",".join(["(%s, %s, %s, %s)" % (i, tl.pose.pose.position.x, tl.pose.pose.position.y, tl.state) for i, tl in enumerate(tl_array_msg.lights)])))
+        self.log_obj["ReceivedRedLights"] = [(i, tl.pose.pose.position.x, tl.pose.pose.position.y, tl.state) for i, tl in enumerate(tl_array_msg.lights)]
+        # rospy.logdebug("TL-Info: %s " % (",".join(["(%s, %s, %s, %s)" % (i, tl.pose.pose.position.x, tl.pose.pose.position.y, tl.state) for i, tl in enumerate(tl_array_msg.lights)])))
+        # 
+        def load_stop_line():
+            stop_line_yaml = '''
+            camera_info:
+              image_width: 800
+              image_height: 600
+            stop_line_positions:
+                - [1148.56, 1184.65]
+                - [1559.2, 1158.43]
+                - [2122.14, 1526.79]
+                - [2175.237, 1795.71]
+                - [1493.29, 2947.67]
+                - [821.96, 2905.8]
+                - [161.76, 2303.82]
+                - [351.84, 1574.65]
+            '''
+            import yaml
+            stop_lines = []
+            for l in yaml.load(stop_line_yaml)["stop_line_positions"]:
+                wp = Waypoint()
+                wp.pose.pose.position.x = l[0]
+                wp.pose.pose.position.y = l[1]
+                stop_lines.append(wp)
+            return stop_lines
+
 
         def map_traffic_lights_to_waypoints(traffic_lights):
             """ map the traffic lights location to the waypoint.
@@ -359,16 +391,19 @@ class WaypointUpdater(object):
                         nearest_index = i
                 self.traffic_lights_wp_mapping.append(nearest_index)
 
-            rospy.logdebug("TL-WP mapping: %s" % ",".join([str(l) for l in self.traffic_lights_wp_mapping])) 
+            self.log_obj["TrafficLightWPMapping"] = [l for l in self.traffic_lights_wp_mapping]
+
+            # rospy.logdebug("TL-WP mapping: %s" % ",".join([str(l) for l in self.traffic_lights_wp_mapping])) 
 
         # mapping the traffic light to waypoint, only done once
         if self.traffic_lights_wp_mapping is None:
-            map_traffic_lights_to_waypoints(tl_array_msg)
+            map_traffic_lights_to_waypoints(load_stop_line())
 
         # find the traffic lights, based on two creteria:
         # 1. the state is red or yellow
         # 2. its' indices must fall in range [next_wp: next_wp + lookahead points]
-        rospy.logdebug("TL-Lookahead index (%s, %s)" % (self.next_waypoint_index, self.next_waypoint_index+LOOKAHEAD_WPS))
+        self.log_obj["LookaheadWPIndex"] = (self.next_waypoint_index, self.next_waypoint_index+LOOKAHEAD_WPS)
+        # rospy.logdebug("TL-Lookahead index (%s, %s)" % (self.next_waypoint_index, self.next_waypoint_index+LOOKAHEAD_WPS))
         red_lights_index = []
         for tl_index, tl in enumerate(tl_array_msg.lights):
             # fixbug: exclude the points in the ends.
@@ -377,13 +412,20 @@ class WaypointUpdater(object):
             # if self.traffic_lights_wp_mapping[tl_index] >= self.next_waypoint_index and self.traffic_lights_wp_mapping[tl_index] <= self.next_waypoint_index + LOOKAHEAD_WPS and (tl.state == TrafficLight.RED or tl.state == TrafficLight.YELLOW):
             if self.traffic_lights_wp_mapping[tl_index] > self.next_waypoint_index and self.traffic_lights_wp_mapping[tl_index] < self.next_waypoint_index + LOOKAHEAD_WPS and (tl.state == TrafficLight.RED or tl.state == TrafficLight.YELLOW):
                 red_lights_index.append(self.traffic_lights_wp_mapping[tl_index])
-                rospy.logdebug("TL-The red light array index %s " % tl_index)
-        rospy.logdebug("TL-Red Light index: %s" % ",".join(["(%s, %s, %s)" % (l, self.waypoints[l].pose.pose.position.x, self.waypoints[l].pose.pose.position.y) for l in red_lights_index]))
+                # rospy.logdebug("TL-The red light array index %s " % tl_index)
+
+        self.log_obj["InRangeRedLight"] = [(l, self.waypoints[l].pose.pose.position.x, self.waypoints[l].pose.pose.position.y) for l in red_lights_index]
+        # rospy.logdebug("TL-Red Light index: %s" % ",".join(["(%s, %s, %s)" % (l, self.waypoints[l].pose.pose.position.x, self.waypoints[l].pose.pose.position.y) for l in red_lights_index]))
         # if there are multiple red lights in range, returns the closest one only.
         red_light_wp_index = -1
         if len(red_lights_index) > 0:
-            red_light_wp_index = min(red_lights_index)
-        rospy.logdebug("TL-Closest RL index %s" % red_light_wp_index)
+            ll = [abs(r - self.next_waypoint_index) for r in red_lights_index]
+            # red_light_wp_index = min(red_lights_index)
+            red_light_wp_index = red_lights_index[ll.index(min(ll))]
+        # if len(red_lights_index) > 0:
+        #     red_light_wp_index = min(red_lights_index)
+        self.log_obj["RedLightIndex"] = red_light_wp_index
+        # rospy.logdebug("TL-Closest RL index %s" % red_light_wp_index)
         return red_light_wp_index
 
 
