@@ -43,7 +43,7 @@ MAX_DECEL = 1.0
 
 # set the value to True to enable the velocity update:
 UPDATE_VELOCITY = True
-USING_SIMULATE_DATA = False
+USING_SIMULATE_DATA = True
 
 class WaypointUpdater(object):
     def __init__(self):
@@ -57,12 +57,8 @@ class WaypointUpdater(object):
 
         # Subsciber
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
-        #rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
-        self.wp_sub = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
-
-        # rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
-        rospy.Subscriber('current_velocity', TwistStamped, self.velocity_cb)
-        # rospy.Subscriber('/obstacle_waypoint', Int32, obstacle_cb)
+        rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
+        rospy.Subscriber('/current_velocity', TwistStamped, self.velocity_cb)
 
         # FIXME ::<xg>:: this is only for testing purpose, delete this.
         if USING_SIMULATE_DATA:
@@ -91,12 +87,12 @@ class WaypointUpdater(object):
             self.fig = plt.figure()
             self.ax = self.fig.add_subplot(1, 1, 1)
 
-        self_log_obj = {}
+        self.log_obj = {}
 
         self.loop()
 
     def loop(self):
-        rate = rospy.Rate(50)  # 0.5Hz
+        rate = rospy.Rate(10)  # 0.5Hz
         while not rospy.is_shutdown():
             if (self.pose is not None) and (self.waypoints is not None):
                 self.update_final_waypoints()
@@ -111,14 +107,14 @@ class WaypointUpdater(object):
         rospy.spin()
 
     def pose_cb(self, msg):
-        self.log_obj["CarPosition"] = (msg.pose.pose.position.x, msg.pose.pose.position.y)
+        self.log_obj["CarPosition"] = (msg.pose.position.x, msg.pose.position.y)
         self.pose = msg
         pass
 
     def waypoints_cb(self, waypoints):
         self.waypoints = waypoints.waypoints
         # is only need once - so better unregister it
-        self.wp_sub.unregister()
+        # self.wp_sub.unregister()
         pass
 
     def traffic_cb(self, msg):
@@ -154,7 +150,7 @@ class WaypointUpdater(object):
         return dist
 
     def distance_2d(self, a, b):
-        return ((a.x - b.x) ** 2 + (a.y - b.y) ** 2)
+        return math.sqrt(((a.x - b.x) ** 2 + (a.y - b.y) ** 2))
 
     def closest_waypoint(self, position):
         closest_len = 10000
@@ -220,12 +216,7 @@ class WaypointUpdater(object):
             for i in range(len(waypoints)):
                 self.set_waypoint_velocity(waypoints, i, max_speed_mps)
         else:    # decrease the velocity
-            # get the index of traffic light waypoint in the waypoints
-            rospy.logdebug("Vupd-traffic_waypoint: (%s, %s, %s)" % (self.traffic_waypoint, self.waypoints[self.traffic_waypoint].pose.pose.position.x, self.waypoints[self.traffic_waypoint].pose.pose.position.y ))
-            rospy.logdebug("Vupd-next_waypoint_index: (%s, %s, %s)" % (self.next_waypoint_index, self.waypoints[self.next_waypoint_index].pose.pose.position.x, self.waypoints[self.next_waypoint_index].pose.pose.position.y ))
-            
             relative_tl_wp_index = self.traffic_waypoint - self.next_waypoint_index
-            rospy.logdebug("Vupd-Relative red light index %s" % relative_tl_wp_index)
             # test, the index conversion is corret
             try:
                 assert(self.distance_2d(waypoints[relative_tl_wp_index].pose.pose.position, self.waypoints[self.traffic_waypoint].pose.pose.position) < 0.0001)
@@ -238,13 +229,12 @@ class WaypointUpdater(object):
                 return
 
             total_distance_to_stop = self.wp_distance(waypoints, 0, relative_tl_wp_index)
-            rospy.logdebug("Vupd-The total distance to stop: %.4f" % total_distance_to_stop)
+            self.log_obj["DistanceToStopLine"] = "%.4f" % total_distance_to_stop
             self.set_waypoint_velocity(waypoints, relative_tl_wp_index, 0)   # set the velocity of last waypoint is zero
             
             # linearly decrease the other velocity, based on the distanct to stop line
-            # initial_velocity = self.get_waypoint_velocity(waypoints[0])
             initial_velocity = self.current_velocity.linear.x
-            rospy.logdebug("Vupd-The initial velocity %s" % initial_velocity)
+            self.log_obj["InitialSpeed"] = "%.4f" % initial_velocity
             dist = 0
             for i in range(relative_tl_wp_index-1):
                 dist += self.distance_2d(waypoints[i].pose.pose.position, waypoints[i+1].pose.pose.position)
@@ -252,21 +242,9 @@ class WaypointUpdater(object):
                 if v < 1.0:
                     v = 0.
                 self.set_waypoint_velocity(waypoints, i, v)
+            self.set_waypoint_velocity(waypoints, relative_tl_wp_index-1, 0)   # set the velocity of last waypoint is zero
 
-            # last = waypoints[relative_tl_wp_index]
-            # last.twist.twist.linear.x = 0.
-            # for wp in waypoints[:relative_tl_wp_index][:-1][::-1]:
-            #     dist = self.distance_2d(wp.pose.pose.position, last.pose.pose.position)
-            #     rospy.logdebug("Vupd-dist %s" % dist)
-            #     vel = math.sqrt(2 * MAX_DECEL * dist)
-            #     rospy.logdebug("Vupd-dist %s" % vel)
-            #     if vel < 1.:
-            #         vel = 0.
-            #     wp.twist.twist.linear.x = min(vel, wp.twist.twist.linear.x)
-            # the above code is from the "decelerate()" method from the "waypoint_loader" file.
-        rospy.logdebug("Vupd- The updated velocity: %s" % (",".join(["%.2f" % wp.twist.twist.linear.x for wp in waypoints])))
-        #rospy.logdebug("Next waypoint velocity: %s" % ( waypoints[0].twist.twist.linear.x ))
-        pass
+        self.log_obj["UpdatedVelocity"] = (",".join(["%.2f" % wp.twist.twist.linear.x for wp in waypoints[:50]]))
 
 
     def publish_final_waypoints(self):
@@ -348,9 +326,8 @@ class WaypointUpdater(object):
         if self.next_waypoint_index is None:
             return
 
-        self.log_obj["ReceivedRedLights"] = [(i, tl.pose.pose.position.x, tl.pose.pose.position.y, tl.state) for i, tl in enumerate(tl_array_msg.lights)]
-        # rospy.logdebug("TL-Info: %s " % (",".join(["(%s, %s, %s, %s)" % (i, tl.pose.pose.position.x, tl.pose.pose.position.y, tl.state) for i, tl in enumerate(tl_array_msg.lights)])))
-        # 
+        self.log_obj["ReceivedRedLights"] = ",".join(["(%s, %s, %s, %s)" % (i, tl.pose.pose.position.x, tl.pose.pose.position.y, tl.state) for i, tl in enumerate(tl_array_msg.lights)])
+
         def load_stop_line():
             stop_line_yaml = '''
             camera_info:
@@ -381,7 +358,7 @@ class WaypointUpdater(object):
                 this is done only once. 
             """
             self.traffic_lights_wp_mapping = []
-            for tl_index, tl in enumerate(traffic_lights.lights):
+            for tl_index, tl in enumerate(traffic_lights):
                 nearest_index = 0
                 nearest_dist = self.distance_2d(tl.pose.pose.position, self.waypoints[0].pose.pose.position)
                 for i in range(1, len(self.waypoints)):
@@ -391,9 +368,8 @@ class WaypointUpdater(object):
                         nearest_index = i
                 self.traffic_lights_wp_mapping.append(nearest_index)
 
-            self.log_obj["TrafficLightWPMapping"] = [l for l in self.traffic_lights_wp_mapping]
+            self.log_obj["TrafficLightWPMapping"] = ",".join([str(l) for l in self.traffic_lights_wp_mapping])
 
-            # rospy.logdebug("TL-WP mapping: %s" % ",".join([str(l) for l in self.traffic_lights_wp_mapping])) 
 
         # mapping the traffic light to waypoint, only done once
         if self.traffic_lights_wp_mapping is None:
@@ -402,8 +378,7 @@ class WaypointUpdater(object):
         # find the traffic lights, based on two creteria:
         # 1. the state is red or yellow
         # 2. its' indices must fall in range [next_wp: next_wp + lookahead points]
-        self.log_obj["LookaheadWPIndex"] = (self.next_waypoint_index, self.next_waypoint_index+LOOKAHEAD_WPS)
-        # rospy.logdebug("TL-Lookahead index (%s, %s)" % (self.next_waypoint_index, self.next_waypoint_index+LOOKAHEAD_WPS))
+        self.log_obj["LookaheadWPIndex"] = "(%s, %s)" % (self.next_waypoint_index, self.next_waypoint_index+LOOKAHEAD_WPS)
         red_lights_index = []
         for tl_index, tl in enumerate(tl_array_msg.lights):
             # fixbug: exclude the points in the ends.
@@ -412,20 +387,15 @@ class WaypointUpdater(object):
             # if self.traffic_lights_wp_mapping[tl_index] >= self.next_waypoint_index and self.traffic_lights_wp_mapping[tl_index] <= self.next_waypoint_index + LOOKAHEAD_WPS and (tl.state == TrafficLight.RED or tl.state == TrafficLight.YELLOW):
             if self.traffic_lights_wp_mapping[tl_index] > self.next_waypoint_index and self.traffic_lights_wp_mapping[tl_index] < self.next_waypoint_index + LOOKAHEAD_WPS and (tl.state == TrafficLight.RED or tl.state == TrafficLight.YELLOW):
                 red_lights_index.append(self.traffic_lights_wp_mapping[tl_index])
-                # rospy.logdebug("TL-The red light array index %s " % tl_index)
 
-        self.log_obj["InRangeRedLight"] = [(l, self.waypoints[l].pose.pose.position.x, self.waypoints[l].pose.pose.position.y) for l in red_lights_index]
-        # rospy.logdebug("TL-Red Light index: %s" % ",".join(["(%s, %s, %s)" % (l, self.waypoints[l].pose.pose.position.x, self.waypoints[l].pose.pose.position.y) for l in red_lights_index]))
+        self.log_obj["InRangeRedLight"] = ",".join(["(%s, %s, %s)" % (l, self.waypoints[l].pose.pose.position.x, self.waypoints[l].pose.pose.position.y) for l in red_lights_index])
         # if there are multiple red lights in range, returns the closest one only.
         red_light_wp_index = -1
         if len(red_lights_index) > 0:
             ll = [abs(r - self.next_waypoint_index) for r in red_lights_index]
             # red_light_wp_index = min(red_lights_index)
             red_light_wp_index = red_lights_index[ll.index(min(ll))]
-        # if len(red_lights_index) > 0:
-        #     red_light_wp_index = min(red_lights_index)
         self.log_obj["RedLightIndex"] = red_light_wp_index
-        # rospy.logdebug("TL-Closest RL index %s" % red_light_wp_index)
         return red_light_wp_index
 
 
