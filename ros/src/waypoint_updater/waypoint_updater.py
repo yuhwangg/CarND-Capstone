@@ -36,16 +36,16 @@ LOOKAHEAD_WPS = 200  # Number of waypoints we will publish. You can change this 
 # per definition in the /waypoint_loader/launch/*.launch files 
 # for the simulator, the speed limit is 40 kmph, the site limit is 10 kmph
 # this value should be changed. 
-MAX_SPEED = 40  
+# MAX_SPEED = 40  
+MAX_SPEED = 10 * 1.61
 MAX_DECEL = 1.0 
-WP_NUMBER_TO_BRAKE = 40
-SPEED_DECREASE_RATE = 5
+STOP_DIST = 5.0
 # </xg>
 
 
 # set the value to True to enable the velocity update:
 UPDATE_VELOCITY = True
-USING_SIMULATE_DATA = True
+USING_SIMULATE_DATA = False
 
 class WaypointUpdater(object):
     def __init__(self):
@@ -62,12 +62,12 @@ class WaypointUpdater(object):
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
         rospy.Subscriber('/current_velocity', TwistStamped, self.velocity_cb)
 
+        rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
+
         # FIXME ::<xg>:: this is only for testing purpose, delete this.
-        if USING_SIMULATE_DATA:
-            rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb)
-            self.traffic_lights_wp_mapping = None
-        else:
-            rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
+        rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb_simu)
+        self.traffic_lights_wp_mapping = None
+        # </xg>
 
         # the next wayponint index, this is an indication of the car's position
         # kind of like the "localization" result. 
@@ -75,7 +75,6 @@ class WaypointUpdater(object):
 
         # the waypoint index to the closest red light. published by the tl_detector
         self.traffic_waypoint = None
-        # </xg>
 
         # Publisher
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
@@ -94,7 +93,7 @@ class WaypointUpdater(object):
         self.loop()
 
     def loop(self):
-        rate = rospy.Rate(10)  # 0.5Hz
+        rate = rospy.Rate(5)  # 0.5Hz
         while not rospy.is_shutdown():
             if (self.pose is not None) and (self.waypoints is not None):
                 self.update_final_waypoints()
@@ -120,13 +119,14 @@ class WaypointUpdater(object):
         pass
 
     def traffic_cb(self, msg):
+        # make sure the index is in range
+        self.traffic_waypoint = -1 if (self.next_waypoint_index is None or msg.data > self.next_waypoint_index + LOOKAHEAD_WPS) else msg.data
+
+    def traffic_cb_simu(self, msg):
         if USING_SIMULATE_DATA:
-            # here the msg is from /vehicle/traffic_lights
             self.traffic_waypoint = self._get_red_light_wp_index(msg)
-        else:
-            self.traffic_waypoint = msg.data
-        # TODO: We surely need to do more here
-        pass
+        else: # without update index, only print the message
+            self._get_red_light_wp_index(msg)
 
     def obstacle_cb(self, msg):
         # TODO: Callback for /obstacle_waypoint message. We will implement it later
@@ -217,37 +217,20 @@ class WaypointUpdater(object):
             max_speed_mps = MAX_SPEED * 1000 / 3600   # convert km per hour to m per second
             for i in range(len(waypoints)):
                 self.set_waypoint_velocity(waypoints, i, max_speed_mps)
+            self.log_obj["DistanceToStopLine"] = "--"
         else:    # decrease the velocity
             relative_tl_wp_index = self.traffic_waypoint - self.next_waypoint_index
-            # test, the index conversion is corret
-            try:
-                assert(self.distance_2d(waypoints[relative_tl_wp_index].pose.pose.position, self.waypoints[self.traffic_waypoint].pose.pose.position) < 0.0001)
-            except AssertionError:
-                rospy.logerr("Error-Vupd-AssertionError. ")
-                # rospy.logdebug("Vupd-relative_tl_wp_index: (%s, %s, %s)" % (relative_tl_wp_index, waypoints[relative_tl_wp_index].pose.pose.position.x, waypoints[relative_tl_wp_index].pose.pose.position.y ))
-                return 
-            except IndexError:
-                rospy.logerr("Error-Vupd-IndexError. ")
-                return
-
-            if relative_tl_wp_index > WP_NUMBER_TO_BRAKE:   # only step the brake paddle within WP_NUMBER_TO_BRAKE wps
-                return 
-
+            
             total_distance_to_stop = self.wp_distance(waypoints, 0, relative_tl_wp_index)
             self.log_obj["DistanceToStopLine"] = "%.4f" % total_distance_to_stop
-            self.set_waypoint_velocity(waypoints, relative_tl_wp_index, 0)   # set the velocity of last waypoint is zero
-            
-            # linearly decrease the other velocity, based on the distanct to stop line
-            initial_velocity = self.current_velocity.linear.x
-            self.log_obj["InitialSpeed"] = "%.4f" % initial_velocity
-            dist = 0
-            for i in range(relative_tl_wp_index-1):
-                dist += self.distance_2d(waypoints[i].pose.pose.position, waypoints[i+1].pose.pose.position)
-                v = initial_velocity * (1 - SPEED_DECREASE_RATE * float(dist) / total_distance_to_stop)
-                if v < 1.0:
-                    v = 0.
-                self.set_waypoint_velocity(waypoints, i, v)
-            self.set_waypoint_velocity(waypoints, relative_tl_wp_index-1, 0)   # set the velocity of last waypoint is zero
+
+            for i in range(relative_tl_wp_index):
+                dist = self.distance_2d(waypoints[i].pose.pose.position, waypoints[relative_tl_wp_index].pose.pose.position)                
+                dist = max(0, dist - STOP_DIST)
+                vel  = math.sqrt(2 * MAX_DECEL * dist) 
+                if vel < 1.:
+                    vel = 0.
+                self.set_waypoint_velocity(waypoints, i, vel)
 
         self.log_obj["UpdatedVelocity"] = (",".join(["%.2f" % wp.twist.twist.linear.x for wp in waypoints[:50]]))
 
@@ -262,11 +245,9 @@ class WaypointUpdater(object):
 
         angle = -angle + math.pi / 2 #adjust simulator angle
 
-
         while angle < -math.pi or angle > math.pi: #normalizing
             #print("Normalizing: ",angle,"\n")
             angle += 2 * math.pi * (1 if angle < -math.pi else -1)
-
 
         px, py = point.x-origin.x, point.y-origin.y
         angle_sin = np.sin(angle)
@@ -293,8 +274,6 @@ class WaypointUpdater(object):
             x,y = self.world_to_car_coords(car_position, point, car_yaw)
             x_list.append(x)
             y_list.append(y)
-
-
 
         coeffs = np.polyfit(y_list,x_list,2)
         cte = coeffs[-1] # fit for x = 0
