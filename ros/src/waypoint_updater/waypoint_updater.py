@@ -120,7 +120,7 @@ class WaypointUpdater(object):
 
     def traffic_cb(self, msg):
         # make sure the index is in range
-        self.traffic_waypoint = -1 if (self.next_waypoint_index is None or msg.data > self.next_waypoint_index + LOOKAHEAD_WPS) else msg.data
+        self.traffic_waypoint = -1 if ((self.next_waypoint_index is None) or (msg.data > self.next_waypoint_index + LOOKAHEAD_WPS) or (msg.data <= self.next_waypoint_index)) else msg.data
 
     def traffic_cb_simu(self, msg):
         if USING_SIMULATE_DATA:
@@ -220,6 +220,8 @@ class WaypointUpdater(object):
             self.log_obj["DistanceToStopLine"] = "--"
         else:    # decrease the velocity
             relative_tl_wp_index = self.traffic_waypoint - self.next_waypoint_index
+            # force limit the index within in range.
+            relative_tl_wp_index = min(relative_tl_wp_index, LookaheadWPIndex-1)
             
             total_distance_to_stop = self.wp_distance(waypoints, 0, relative_tl_wp_index)
             self.log_obj["DistanceToStopLine"] = "%.4f" % total_distance_to_stop
