@@ -11,12 +11,19 @@ import tf
 import cv2
 import yaml
 import numpy as np
+import time
+import os
 
 STATE_COUNT_THRESHOLD = 3
 
+base_folder = os.path.dirname(os.path.realpath(__file__))
+sim_model_path = base_folder + '/models/frozen_sim/frozen_inference_graph.pb'
+real_model_path = base_folder + '/models/frozen_real/frozen_inference_graph.pb'
+PATH_TO_LABELS = base_folder + '/light_classification/label_map.pbtxt'
+
 class TLDetector(object):
     def __init__(self):
-        rospy.init_node('tl_detector')
+        rospy.init_node('tl_detector', log_level=rospy.DEBUG)
 
         self.pose = None
         self.waypoints = None
@@ -47,13 +54,16 @@ class TLDetector(object):
         self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', Int32, queue_size=1)
 
         self.bridge = CvBridge()
-        self.light_classifier = TLClassifier()
+        # self.light_classifier = TLClassifier()
         self.listener = tf.TransformListener()
 
         self.state = TrafficLight.UNKNOWN
         self.last_state = TrafficLight.UNKNOWN
         self.last_wp = -1
         self.state_count = 0
+        
+        self.light_classifier = TLClassifier(sim_model_path, PATH_TO_LABELS)
+        self.base_timer = time.time()
 
         rospy.spin()
 
@@ -97,6 +107,13 @@ class TLDetector(object):
         else:
             self.upcoming_red_light_pub.publish(Int32(self.last_wp))
         self.state_count += 1
+
+        # testing the detection result:
+        if time.time() > self.base_timer + 2:
+            cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
+            state, d_time = self.light_classifier.get_classification(cv_image)
+            rospy.logdebug("Detection Result: %s, time: %s" % (state, d_time))
+            self.base_timer = time.time()   
 
     def get_closest_waypoint(self, pose):
         """Identifies the closest path waypoint to the given position
