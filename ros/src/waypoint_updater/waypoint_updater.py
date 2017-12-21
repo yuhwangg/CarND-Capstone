@@ -221,7 +221,7 @@ class WaypointUpdater(object):
         else:    # decrease the velocity
             relative_tl_wp_index = self.traffic_waypoint - self.next_waypoint_index
             # force limit the index within in range.
-            relative_tl_wp_index = min(relative_tl_wp_index, LookaheadWPIndex-1)
+            relative_tl_wp_index = min(relative_tl_wp_index, LOOKAHEAD_WPS-1)
             
             total_distance_to_stop = self.wp_distance(waypoints, 0, relative_tl_wp_index)
             self.log_obj["DistanceToStopLine"] = "%.4f" % total_distance_to_stop
