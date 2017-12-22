@@ -5,3 +5,10 @@ devel
 
 profile.tmp
 .idea/*
+.gitignore
+just_traffic_light.bag
+loop_with_traffic_light.bag
+green/
+red/
+unknown/
+yellow/
