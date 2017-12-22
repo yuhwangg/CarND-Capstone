@@ -34,6 +34,10 @@ class TLClassifier(object):
 
         # self.load_graph()
 
+    # Helper function to convert image into numpy array
+    def load_image_into_numpy_array(self, image):
+         return np.asarray(image, dtype="uint8" )
+
     def load_graph(self):
       self.detection_graph = tf.Graph()
       with self.detection_graph.as_default():

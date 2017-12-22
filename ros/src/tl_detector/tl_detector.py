@@ -17,10 +17,9 @@ import os
 STATE_COUNT_THRESHOLD = 3
 
 base_folder = os.path.dirname(os.path.realpath(__file__))
-sim_model_path = base_folder + '/models/frozen_sim/frozen_inference_graph.pb'
-real_model_path = base_folder + '/models/frozen_real/frozen_inference_graph.pb'
+model_path = base_folder + '/models/frozen_sim/frozen_inference_graph.pb'
+# model_path = base_folder + '/models/frozen_real/frozen_inference_graph.pb'
 PATH_TO_LABELS = base_folder + '/light_classification/label_map.pbtxt'
-test_image = base_folder + "light_classification/test_images/sim/left0003.jpg"
 
 class TLDetector(object):
     def __init__(self):
@@ -66,11 +65,11 @@ class TLDetector(object):
         self.last_wp = -1
         self.state_count = 0
         
-        self.light_classifier = TLClassifier(sim_model_path, PATH_TO_LABELS)
-        # activate the tensorflow  --- this does not work
-        # tt_image = cv2.imread(test_image)
-        # print(tt_image)
-        # self.light_classifier.get_classification(tt_image)
+        self.light_classifier = TLClassifier(model_path, PATH_TO_LABELS)
+
+        img_full_np = self.light_classifier.load_image_into_numpy_array(np.zeros((800,600,3)))
+        self.light_classifier.get_classification(img_full_np) 
+
         self.base_timer = time.time()
 
         rospy.spin()
@@ -160,13 +159,11 @@ class TLDetector(object):
         # testing the detection result:
         # based on the test, gpu performance for one iamges is about 1 seconds, 
         # add some buffer here to avoid the images flood to the classfication
-
-        if time.time() > self.base_timer + 0.5:
+        if time.time() > self.base_timer + 0.2:
             state, d_time = self.light_classifier.get_classification(cv_image)
             self.previous_state = state
             rospy.logdebug("Detection Result: %s, time: %s" % (state, d_time))
             self.base_timer = time.time()   
-            self.tf_activated = True
             return state
         else:
             return self.previous_state
@@ -236,5 +233,10 @@ class TLDetector(object):
 if __name__ == '__main__':
     try:
         TLDetector()
+        # # activate the tensorflow  --- this does not work
+        # rospy.logdebug("test images, loading")
+        # tt_image = cv2.imread(test_image)
+        # print(tt_image)
+        # self.light_classifier.get_classification(tt_image)
     except rospy.ROSInterruptException:
         rospy.logerr('Could not start traffic node.')

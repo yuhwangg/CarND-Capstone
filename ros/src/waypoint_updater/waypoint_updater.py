@@ -106,7 +106,7 @@ class WaypointUpdater(object):
                 self.publish_final_waypoints()
 
                 if time.time() > self.logger_time + 1:
-                    rospy.logdebug(json.dumps(self.log_obj, indent=2))
+                    # rospy.logdebug(json.dumps(self.log_obj, indent=2))
                     self.logger_time = time.time()
 
             rate.sleep()
