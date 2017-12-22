@@ -10,7 +10,9 @@ import tf
 import copy
 import numpy as np
 from scipy import interpolate
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
+import time
+import json
 
 # FIXME ::<xg>:: this is only for testing purpose, delete this.
 from styx_msgs.msg import TrafficLightArray, TrafficLight  
@@ -90,6 +92,8 @@ class WaypointUpdater(object):
 
         self.log_obj = {}
 
+        self.logger_time = time.time()
+
         self.loop()
 
     def loop(self):
@@ -101,14 +105,15 @@ class WaypointUpdater(object):
                 self.update_velocity(self.final_waypoints) # <xg>: update the velocity
                 self.publish_final_waypoints()
 
-                import json
-                rospy.logdebug(json.dumps(self.log_obj, indent=2))
+                if time.time() > self.logger_time + 1:
+                    # rospy.logdebug(json.dumps(self.log_obj, indent=2))
+                    self.logger_time = time.time()
 
             rate.sleep()
         rospy.spin()
 
     def pose_cb(self, msg):
-        self.log_obj["CarPosition"] = (msg.pose.position.x, msg.pose.position.y)
+        # self.log_obj["CarPosition"] = (msg.pose.position.x, msg.pose.position.y)
         self.pose = msg
         pass
 
@@ -120,7 +125,7 @@ class WaypointUpdater(object):
 
     def traffic_cb(self, msg):
         # make sure the index is in range
-        self.traffic_waypoint = -1 if (self.next_waypoint_index is None or msg.data > self.next_waypoint_index + LOOKAHEAD_WPS) else msg.data
+        self.traffic_waypoint = -1 if ((self.next_waypoint_index is None) or (msg.data > self.next_waypoint_index + LOOKAHEAD_WPS) or (msg.data <= self.next_waypoint_index)) else msg.data
 
     def traffic_cb_simu(self, msg):
         if USING_SIMULATE_DATA:
@@ -220,6 +225,8 @@ class WaypointUpdater(object):
             self.log_obj["DistanceToStopLine"] = "--"
         else:    # decrease the velocity
             relative_tl_wp_index = self.traffic_waypoint - self.next_waypoint_index
+            # force limit the index within in range.
+            relative_tl_wp_index = min(relative_tl_wp_index, LOOKAHEAD_WPS-1)
             
             total_distance_to_stop = self.wp_distance(waypoints, 0, relative_tl_wp_index)
             self.log_obj["DistanceToStopLine"] = "%.4f" % total_distance_to_stop
@@ -232,7 +239,7 @@ class WaypointUpdater(object):
                     vel = 0.
                 self.set_waypoint_velocity(waypoints, i, vel)
 
-        self.log_obj["UpdatedVelocity"] = (",".join(["%.2f" % wp.twist.twist.linear.x for wp in waypoints[:50]]))
+        # self.log_obj["UpdatedVelocity"] = (",".join(["%.2f" % wp.twist.twist.linear.x for wp in waypoints[:50]]))
 
 
     def publish_final_waypoints(self):
@@ -310,7 +317,7 @@ class WaypointUpdater(object):
         if self.next_waypoint_index is None:
             return
 
-        self.log_obj["ReceivedRedLights"] = ",".join(["(%s, %s, %s, %s)" % (i, tl.pose.pose.position.x, tl.pose.pose.position.y, tl.state) for i, tl in enumerate(tl_array_msg.lights)])
+        # self.log_obj["ReceivedRedLights"] = ",".join(["(%s, %s, %s, %s)" % (i, tl.pose.pose.position.x, tl.pose.pose.position.y, tl.state) for i, tl in enumerate(tl_array_msg.lights)])
 
         def load_stop_line():
             stop_line_yaml = '''
@@ -352,7 +359,7 @@ class WaypointUpdater(object):
                         nearest_index = i
                 self.traffic_lights_wp_mapping.append(nearest_index)
 
-            self.log_obj["TrafficLightWPMapping"] = ",".join([str(l) for l in self.traffic_lights_wp_mapping])
+            # self.log_obj["TrafficLightWPMapping"] = ",".join([str(l) for l in self.traffic_lights_wp_mapping])
 
 
         # mapping the traffic light to waypoint, only done once

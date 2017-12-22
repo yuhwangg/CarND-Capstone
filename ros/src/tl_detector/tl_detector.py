@@ -11,12 +11,19 @@ import tf
 import cv2
 import yaml
 import numpy as np
+import time
+import os
 
 STATE_COUNT_THRESHOLD = 3
 
+base_folder = os.path.dirname(os.path.realpath(__file__))
+model_path = base_folder + '/models/frozen_sim/frozen_inference_graph.pb'
+# model_path = base_folder + '/models/frozen_real/frozen_inference_graph.pb'
+PATH_TO_LABELS = base_folder + '/light_classification/label_map.pbtxt'
+
 class TLDetector(object):
     def __init__(self):
-        rospy.init_node('tl_detector')
+        rospy.init_node('tl_detector', log_level=rospy.DEBUG)
 
         self.pose = None
         self.waypoints = None
@@ -47,13 +54,23 @@ class TLDetector(object):
         self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', Int32, queue_size=1)
 
         self.bridge = CvBridge()
-        self.light_classifier = TLClassifier()
+        # self.light_classifier = TLClassifier()
         self.listener = tf.TransformListener()
 
         self.state = TrafficLight.UNKNOWN
         self.last_state = TrafficLight.UNKNOWN
+
+        self.previous_state = TrafficLight.UNKNOWN   # xg: code review this.
+
         self.last_wp = -1
         self.state_count = 0
+        
+        self.light_classifier = TLClassifier(model_path, PATH_TO_LABELS)
+
+        img_full_np = self.light_classifier.load_image_into_numpy_array(np.zeros((800,600,3)))
+        self.light_classifier.get_classification(img_full_np) 
+
+        self.base_timer = time.time()
 
         rospy.spin()
 
@@ -76,9 +93,10 @@ class TLDetector(object):
         """
         self.has_image = True
         self.camera_image = msg
+
         light_wp, state = self.process_traffic_lights()
-	
-        print "light_wp: " , light_wp, " state: " , state
+
+        # print "light_wp: " , light_wp, " state: " , state
 
         '''
         Publish upcoming red lights at camera frequency.
@@ -97,6 +115,8 @@ class TLDetector(object):
         else:
             self.upcoming_red_light_pub.publish(Int32(self.last_wp))
         self.state_count += 1
+
+
 
     def get_closest_waypoint(self, pose):
         """Identifies the closest path waypoint to the given position
@@ -136,72 +156,17 @@ class TLDetector(object):
             return False
 
         cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
-
-        #Get classification
-        # return self.light_classifier.get_classification(cv_image)
-
-        #Prepare image for classification
-        #cut 50 pixels left and right of the image and the bottom 100 pixels
-        if self.sim_testing: 
-            width, height, _ = cv_image.shape
-            x_start = int(width * 0.10)
-            x_end = int(width * 0.90)
-            y_start = 0
-            y_end = int(height * 0.85)
-            processed_img = cv_image[y_start:y_end, x_start:x_end]
+        # testing the detection result:
+        # based on the test, gpu performance for one iamges is about 1 seconds, 
+        # add some buffer here to avoid the images flood to the classfication
+        if time.time() > self.base_timer + 0.2:
+            state, d_time = self.light_classifier.get_classification(cv_image)
+            self.previous_state = state
+            rospy.logdebug("Detection Result: %s, time: %s" % (state, d_time))
+            self.base_timer = time.time()   
+            return state
         else:
-            #zoom on the traffic light
-            processed_img = cv_image.copy()
-
-        #Convert image to RGB format
-        processed_img = cv2.cvtColor(processed_img, cv2.COLOR_BGR2RGB)
-
-        # Get classification
-        #initialize light_state to unknown by default
-        light_state = TrafficLight.UNKNOWN
-        light_state_via_msg = None
-
-        #get the ground truth traffic light states through the traffic light messages
-        for tl in self.lights:
-            dist = math.sqrt((tl.pose.pose.position.x - light.position.x)**2 + (tl.pose.pose.position.y - light.position.y)**2)
-            if (dist < 50): # found the light close to the stop line
-                light_state_via_msg = tl.state
-                break       # no need to parse other lights once light was found
-
-        #detect traffic light position (box) in image
-        #convert image to np array
-        img_full_np = self.light_classifier.load_image_into_numpy_array(processed_img)
-        b = self.light_classifier.get_localization(img_full_np)
-        print(b)
-        # If there is no detection or low-confidence detection
-        unknown = False
-        if np.array_equal(b, np.zeros(4)):
-           print ('unknown')
-           unknown = True
-        else:    #use the classifier to classify the state of the traffic light
-           img_np = cv2.resize(processed_img[b[0]:b[2], b[1]:b[3]], (32, 32))
-           self.light_classifier.get_classification(img_np)
-           light_state = self.light_classifier.signal_status
-
-        rospy.loginfo("Upcoming light %s, True state: %s", light_state, light_state_via_msg)
-
-        #compare detected state against ground truth
-        if not unknown:
-            self.count = self.count + 1
-            filename = "sim_image_" + str(self.count)
-            if (light_state == light_state_via_msg):
-               self.tp_classification = self.tp_classification + 1
-               #filename = filename + "_good_" + str(light_state) + ".jpg"
-            else:
-               filename = filename + "_bad_" + str(light_state) + ".jpg"
-
-            self.total_classification = self.total_classification + 1
-            accuracy = (self.tp_classification / self.total_classification) * 100
-
-            if self.count % 20 == 0:
-                rospy.loginfo("Classification accuracy: %s", accuracy)
- 
-        return light_state
+            return self.previous_state
 
 
     def process_traffic_lights(self):
@@ -257,8 +222,8 @@ class TLDetector(object):
 
         if light:
             # This line should be uncommented once the "get_light_state" is ready 
-            #state = self.get_light_state(light)
-            state = light.state
+            state = self.get_light_state(light)
+            # state = light.state
             
             return line_wp_index, state
           
@@ -268,5 +233,10 @@ class TLDetector(object):
 if __name__ == '__main__':
     try:
         TLDetector()
+        # # activate the tensorflow  --- this does not work
+        # rospy.logdebug("test images, loading")
+        # tt_image = cv2.imread(test_image)
+        # print(tt_image)
+        # self.light_classifier.get_classification(tt_image)
     except rospy.ROSInterruptException:
         rospy.logerr('Could not start traffic node.')
