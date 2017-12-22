@@ -1,15 +1,15 @@
-This is the project repo for the final project of the Udacity Self-Driving Car Nanodegree: Programming a Real Self-Driving Car. This is a collaboration between five team members:
+This is the project repo for the final project of the Udacity Self-Driving Car Nanodegree: Programming a Real Self-Driving Car. This is a colleboration between five team members:
 
 
 ## The Team
 
-|     Role      |      Name      |    Location      |     Email   |
+|     Role      |      Name      |    Location   |     Email   |
 |---------------|----------------|---------------|-------------|
-|__Lead__  | Yuheng Wang | San Jose, CA |  <yxw9636@gmail.com> | 
-|  Member  | Xiaogang Zhang| China |  <dlzhangxg@gmail.com> | 
-|  Member  | Kambiz Mir | Irvine, CA |  <kambizmir@gmail.com> | 
-|  Member  | Julia Pralle| Bay Area, CA |  <julia.bolewski@gmail.com> | 
-|  Member  | Cesare Montresor| Italy | <cesare.montresor@gmail.com> |
+|__Lead__  | Xiaogang Zhang | China |  <dlzhangxg@gmail.com> |
+|  Member  | Cesare Montresor | Italy | <cesare.montresor@gmail.com> |
+|  Member  | Kambiz Mir | Irvine, CA | <kambizmir@gmail.com> |
+|  Member  | Julia Pralle | Mountain View, CA | <julia.bolewski@gmail.com> |
+
 
 ## System Architecture Diagram
 For this project, we are writing ROS nodes to implement core functionality of the autonomous vehicle system, including traffic light detection, control, and waypoint following. The code is tested using a simulator before submission.
@@ -48,8 +48,25 @@ Because we write code across several packages with some nodes depending on messa
 
 4. Waypoint Updater (Full): Use /traffic_waypoint to change the waypoint target velocities before publishing to /final_waypoints. Your car should now stop at red traffic lights and move when they are green.
 
+## Waypoint Updater Node
+The waypoint_updater finds next waypoints from the closest waypoint based on the current position and the orientation of the vehicle. It then generates the final_waypoints with the velocity.
 
-### Native Installation
+## DBW Node
+The dbw_node.py logic will call the Controller object with the current state information (speed, etc) to obtain throttle, brake, and steering commands if the manual mode is disabled. We implemented PID controller for generating steering and throttle commands. 
+
+## Traffic Light Detection
+For the traffic light detection we used Tensorflow's Object Detection API, which is an open source framework built on top of Tensorflow that makes it easy to construct, train and deploy object detection models. We implemented a pre-trained Faster R-CNN and retrained a model for simultion and a model for the real track as follows:
+
+Simulator model:
+1. Bosch Traffic Lights Dataset 
+2. Simulator images generated while driving 
+
+Real track model:
+1. Bosch Traffic Lights Dataset 
+2. Real track images provided by the rosbag video
+
+
+## Native Installation and Usage
 
 * Be sure that your workstation is running Ubuntu 16.04 Xenial Xerus or Ubuntu 14.04 Trusty Tahir. [Ubuntu downloads can be found here](https://www.ubuntu.com/download/desktop).
 * If using a Virtual Machine to install Ubuntu, use the following configuration as minimum:
