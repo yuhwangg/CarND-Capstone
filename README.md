@@ -1,4 +1,4 @@
-This is the project repo for the final project of the Udacity Self-Driving Car Nanodegree: Programming a Real Self-Driving Car. This is a colleboration between five team members:
+This is the project repo for the final project of the Udacity Self-Driving Car Nanodegree: Programming a Real Self-Driving Car. This is a collaboration between four team members:
 
 
 ## The Team
